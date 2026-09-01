@@ -1,16 +1,66 @@
 {
-  "title": "Breast Cancer Model Monitoring",
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 0,
   "panels": [
     {
-      "type": "timeseries",
-      "title": "Prometheus Target Health",
-      "targets": [
-        {
-          "expr": "up"
-        }
-      ]
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "up{job=\"breast-cancer-model-serving\"}", "refId": "A"}],
+      "title": "Model Serving Health",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "up{job=\"prometheus\"}", "refId": "A"}],
+      "title": "Prometheus Health",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"expr": "scrape_duration_seconds{job=\"breast-cancer-model-serving\"}", "refId": "A"}],
+      "title": "Model Scrape Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
+      "id": 4,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"expr": "rate(prometheus_http_requests_total[5m])", "refId": "A"}],
+      "title": "Prometheus HTTP Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
+      "id": 5,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [{"expr": "scrape_samples_scraped{job=\"breast-cancer-model-serving\"}", "refId": "A"}],
+      "title": "Model Metrics Samples Scraped",
+      "type": "timeseries"
     }
   ],
+  "refresh": "15s",
   "schemaVersion": 39,
-  "version": 1
+  "tags": ["mlops", "tensorflow-serving", "prometheus"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "timezone": "browser",
+  "title": "Breast Cancer Model Monitoring",
+  "uid": "reza-mlops-monitoring",
+  "version": 2
 }

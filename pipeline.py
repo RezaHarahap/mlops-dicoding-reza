@@ -15,7 +15,7 @@ from tfx.components import (
 )
 from tfx.dsl.components.common.resolver import Resolver
 from tfx.dsl.experimental import latest_blessed_model_resolver
-from tfx.orchestration import pipeline
+from tfx.orchestration import metadata, pipeline
 from tfx.orchestration.local.local_dag_runner import LocalDagRunner
 from tfx.proto import pusher_pb2, trainer_pb2
 from tfx.types import Channel, standard_artifacts
@@ -125,7 +125,7 @@ def create_pipeline():
     return pipeline.Pipeline(
         pipeline_name=PIPELINE_NAME,
         pipeline_root=PIPELINE_ROOT,
-        metadata_connection_config=pipeline.sqlite_metadata_connection_config(
+        metadata_connection_config=metadata.sqlite_metadata_connection_config(
             METADATA_PATH
         ),
         components=components,

@@ -1,0 +1,56 @@
+name: Build TFX Artifacts with Official Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-tfx-docker.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clean placeholder outputs
+        run: |
+          sudo rm -rf reza_harahap-pipeline serving_model
+          mkdir -p serving_model
+
+      - name: Run pipeline in official TFX 1.15.1 image
+        run: |
+          docker pull tensorflow/tfx:1.15.1
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            tensorflow/tfx:1.15.1 \
+            bash -lc 'python pipeline.py'
+
+      - name: Validate reviewer-required artifacts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('reza_harahap-pipeline')
+          assert root.exists(), 'reza_harahap-pipeline missing'
+          files=[p for p in root.rglob('*') if p.is_file()]
+          print('Artifact files:', len(files))
+          for keyword in ['ExampleGen','StatisticsGen','SchemaGen','ExampleValidator','Transform','Trainer','Evaluator','Pusher']:
+              hits=[p for p in root.rglob('*') if keyword.lower() in str(p).lower()]
+              print(keyword, len(hits))
+              assert hits, f'{keyword} artifact missing'
+          saved=list(Path('serving_model').rglob('saved_model.pb'))
+          print('Pushed SavedModel:', saved)
+          assert saved, 'Pusher SavedModel missing'
+          PY
+
+      - name: Upload real TFX artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-tfx-artifacts-official-image
+          path: |
+            reza_harahap-pipeline/
+            serving_model/
+          retention-days: 30

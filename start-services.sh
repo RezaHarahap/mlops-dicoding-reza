@@ -14,13 +14,18 @@ PROM_PID=$!
   --monitoring_config_file=/etc/tf_serving/prometheus.config &
 TF_PID=$!
 
+/usr/bin/grafana-server \
+  --homepath=/usr/share/grafana \
+  --config=/etc/grafana/grafana.ini &
+GRAFANA_PID=$!
+
 term_handler() {
-  kill -TERM "$PROM_PID" "$TF_PID" 2>/dev/null || true
-  wait "$PROM_PID" "$TF_PID" 2>/dev/null || true
+  kill -TERM "$PROM_PID" "$TF_PID" "$GRAFANA_PID" 2>/dev/null || true
+  wait "$PROM_PID" "$TF_PID" "$GRAFANA_PID" 2>/dev/null || true
 }
 trap term_handler TERM INT
 
-wait -n "$PROM_PID" "$TF_PID"
+wait -n "$PROM_PID" "$TF_PID" "$GRAFANA_PID"
 EXIT_CODE=$?
 term_handler
 exit "$EXIT_CODE"

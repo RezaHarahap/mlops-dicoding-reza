@@ -6,11 +6,16 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/build-tfx-docker.yml'
+      - 'pipeline.py'
+      - 'modules/**'
+      - 'data/**'
+      - 'reza_harahap-pipeline.ipynb'
+      - 'reza_harahap-testing.ipynb'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,10 +29,11 @@ jobs:
         run: |
           docker pull tensorflow/tfx:1.15.1
           docker run --rm \
+            --entrypoint /bin/bash \
             -v "$PWD:/workspace" \
             -w /workspace \
             tensorflow/tfx:1.15.1 \
-            bash -lc 'python pipeline.py'
+            -lc 'python pipeline.py'
 
       - name: Validate reviewer-required artifacts
         run: |
@@ -37,6 +43,7 @@ jobs:
           assert root.exists(), 'reza_harahap-pipeline missing'
           files=[p for p in root.rglob('*') if p.is_file()]
           print('Artifact files:', len(files))
+          assert len(files) > 10, 'real TFX artifacts were not generated'
           for keyword in ['ExampleGen','StatisticsGen','SchemaGen','ExampleValidator','Transform','Trainer','Evaluator','Pusher']:
               hits=[p for p in root.rglob('*') if keyword.lower() in str(p).lower()]
               print(keyword, len(hits))
@@ -47,6 +54,7 @@ jobs:
           PY
 
       - name: Upload real TFX artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: real-tfx-artifacts-official-image

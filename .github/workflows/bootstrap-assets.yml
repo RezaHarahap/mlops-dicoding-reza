@@ -20,22 +20,28 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install lightweight dependencies
-        run: pip install scikit-learn==1.5.2 pandas==2.1.4 joblib==1.4.2
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install tensorflow-cpu==2.15.1 scikit-learn==1.5.2 pandas==2.1.4 joblib==1.4.2
 
-      - name: Generate dataset and baseline artifacts
+      - name: Generate dataset, metrics, and TensorFlow SavedModel
         run: |
           python - <<'PY'
           from pathlib import Path
           import json
+          import shutil
           import joblib
+          import numpy as np
           import pandas as pd
+          import tensorflow as tf
           from sklearn.datasets import load_breast_cancer
           from sklearn.linear_model import LogisticRegression
           from sklearn.metrics import accuracy_score, roc_auc_score
           from sklearn.model_selection import train_test_split
           from sklearn.preprocessing import StandardScaler
 
+          tf.keras.utils.set_random_seed(42)
           root = Path('.')
           (root / 'data').mkdir(exist_ok=True)
           (root / 'model-serving').mkdir(exist_ok=True)
@@ -44,35 +50,85 @@ jobs:
           df = ds.frame.rename(columns={'target': 'label'})
           df.to_csv(root / 'data' / 'breast_cancer.csv', index=False)
 
-          X = df.drop(columns=['label'])
-          y = df['label']
+          X = df.drop(columns=['label']).astype('float32')
+          y = df['label'].astype('float32')
           X_train, X_test, y_train, y_test = train_test_split(
               X, y, test_size=0.2, random_state=42, stratify=y
           )
+
           scaler = StandardScaler()
-          X_train_scaled = scaler.fit_transform(X_train)
-          X_test_scaled = scaler.transform(X_test)
-          model = LogisticRegression(max_iter=2000, random_state=42)
-          model.fit(X_train_scaled, y_train)
-          proba = model.predict_proba(X_test_scaled)[:, 1]
-          pred = model.predict(X_test_scaled)
+          X_train_scaled = scaler.fit_transform(X_train).astype('float32')
+          X_test_scaled = scaler.transform(X_test).astype('float32')
+
+          baseline = LogisticRegression(max_iter=2000, random_state=42)
+          baseline.fit(X_train_scaled, y_train)
+          proba = baseline.predict_proba(X_test_scaled)[:, 1]
+          pred = baseline.predict(X_test_scaled)
           metrics = {
               'auc': float(roc_auc_score(y_test, proba)),
               'binary_accuracy': float(accuracy_score(y_test, pred)),
           }
-          joblib.dump({'scaler': scaler, 'model': model, 'features': list(X.columns)}, root / 'model-serving' / 'baseline_model.joblib')
+          joblib.dump(
+              {'scaler': scaler, 'model': baseline, 'features': list(X.columns)},
+              root / 'model-serving' / 'baseline_model.joblib'
+          )
           (root / 'model-serving' / 'metrics.json').write_text(json.dumps(metrics, indent=2))
-          print(df.shape, metrics)
+
+          # TensorFlow model for real TensorFlow Serving deployment.
+          normalizer = tf.keras.layers.Normalization(axis=-1)
+          normalizer.adapt(np.asarray(X_train, dtype='float32'))
+          model = tf.keras.Sequential([
+              tf.keras.Input(shape=(X.shape[1],), name='features'),
+              normalizer,
+              tf.keras.layers.Dense(32, activation='relu'),
+              tf.keras.layers.Dense(16, activation='relu'),
+              tf.keras.layers.Dense(1, activation='sigmoid', name='probability'),
+          ])
+          model.compile(
+              optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=[tf.keras.metrics.BinaryAccuracy(name='binary_accuracy'), tf.keras.metrics.AUC(name='auc')],
+          )
+          model.fit(
+              np.asarray(X_train, dtype='float32'),
+              np.asarray(y_train, dtype='float32'),
+              validation_data=(np.asarray(X_test, dtype='float32'), np.asarray(y_test, dtype='float32')),
+              epochs=35,
+              batch_size=32,
+              verbose=0,
+          )
+
+          export_dir = root / 'serving_model' / '1'
+          if export_dir.exists():
+              shutil.rmtree(export_dir)
+          export_dir.parent.mkdir(parents=True, exist_ok=True)
+
+          @tf.function(input_signature=[tf.TensorSpec([None, X.shape[1]], tf.float32, name='features')])
+          def serving_fn(features):
+              return {'probability': model(features, training=False)}
+
+          tf.saved_model.save(
+              model,
+              str(export_dir),
+              signatures={'serving_default': serving_fn.get_concrete_function()},
+          )
+
+          loaded = tf.saved_model.load(str(export_dir))
+          fn = loaded.signatures['serving_default']
+          test_out = fn(features=tf.constant(np.asarray(X_test.iloc[:1], dtype='float32')))
+          print('SavedModel OK:', export_dir)
+          print('Signature output:', test_out)
+          print('Dataset:', df.shape, 'baseline metrics:', metrics)
           PY
 
       - name: Commit generated assets
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/breast_cancer.csv model-serving/baseline_model.joblib model-serving/metrics.json
+          git add data/breast_cancer.csv model-serving/baseline_model.joblib model-serving/metrics.json serving_model/1
           if git diff --cached --quiet; then
             echo "Assets already up to date."
           else
-            git commit -m "Generate dataset and baseline assets [skip bootstrap]"
+            git commit -m "Generate TensorFlow SavedModel and dataset assets [skip bootstrap]"
             git push
           fi

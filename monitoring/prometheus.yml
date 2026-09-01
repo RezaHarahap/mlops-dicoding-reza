@@ -1,10 +1,18 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: "tf-serving-monitor"
+
 scrape_configs:
-  - job_name: prometheus
-    static_configs:
-      - targets: ["localhost:9090"]
-  - job_name: model-serving
+  - job_name: "breast-cancer-model-serving-cloud"
+    scrape_interval: 5s
+    scheme: https
     metrics_path: /monitoring/prometheus/metrics
     static_configs:
-      - targets: ["model-serving:8501"]
+      - targets: ["mlops-dicoding-reza-production.up.railway.app"]
+
+  - job_name: "prometheus"
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["localhost:9090"]

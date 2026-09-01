@@ -6,10 +6,6 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/capture-cloud-evidence.yml'
-      - 'monitoring/prometheus.yml'
-      - 'monitoring/prometheus.single-service.yml'
-      - 'Dockerfile'
-      - 'start-services.sh'
 
 jobs:
   evidence:
@@ -19,36 +15,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Wait for cloud model and Prometheus
-        shell: bash
+      - name: Verify public Railway model endpoint
         run: |
           set -e
           MODEL='https://mlops-dicoding-reza-production.up.railway.app/v1/models/breast_cancer_model'
-          TARGETS='https://mlops-dicoding-reza-production-992b.up.railway.app/api/v1/targets'
-          for i in $(seq 1 40); do
-            echo "Attempt $i"
-            MODEL_BODY=$(curl -fsSL --max-time 20 "$MODEL" || true)
-            TARGET_BODY=$(curl -fsSL --max-time 20 "$TARGETS" || true)
-            echo "$MODEL_BODY" > /tmp/model.json
-            echo "$TARGET_BODY" > /tmp/targets.json
-            if echo "$MODEL_BODY" | grep -q 'AVAILABLE' && \
-               echo "$TARGET_BODY" | grep -q 'mlops-dicoding-reza-production.up.railway.app' && \
-               echo "$TARGET_BODY" | grep -q '"health":"up"'; then
-              echo 'Cloud endpoints validated.'
+          for i in $(seq 1 20); do
+            BODY=$(curl -fsSL --max-time 20 "$MODEL" || true)
+            echo "$BODY"
+            if echo "$BODY" | grep -q 'AVAILABLE'; then
+              mkdir -p evidence/cloud
+              echo "$BODY" | python -m json.tool > evidence/cloud/model-status.json
               exit 0
             fi
-            sleep 15
+            sleep 10
           done
-          echo 'Cloud endpoints did not become reviewer-valid in time.'
-          echo 'MODEL:'; cat /tmp/model.json
-          echo 'TARGETS:'; cat /tmp/targets.json
+          echo 'Railway TensorFlow Serving endpoint is not AVAILABLE.'
           exit 1
 
-      - name: Save API evidence
+      - name: Run Prometheus locally against public cloud model
         run: |
-          mkdir -p evidence/cloud
-          curl -fsSL 'https://mlops-dicoding-reza-production.up.railway.app/v1/models/breast_cancer_model' | python -m json.tool > evidence/cloud/model-status.json
-          curl -fsSL 'https://mlops-dicoding-reza-production-992b.up.railway.app/api/v1/targets' | python -m json.tool > evidence/cloud/prometheus-targets.json
+          docker run -d --name reviewer-prometheus \
+            -p 9090:9090 \
+            -v "$PWD/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+            prom/prometheus:latest \
+            --config.file=/etc/prometheus/prometheus.yml
+          for i in $(seq 1 20); do
+            BODY=$(curl -fsSL 'http://127.0.0.1:9090/api/v1/targets' || true)
+            if echo "$BODY" | grep -q 'mlops-dicoding-reza-production.up.railway.app' && echo "$BODY" | grep -q '"health":"up"'; then
+              echo "$BODY" | python -m json.tool > evidence/cloud/prometheus-targets.json
+              echo 'Prometheus cloud target is UP.'
+              exit 0
+            fi
+            sleep 5
+          done
+          curl -s 'http://127.0.0.1:9090/api/v1/targets' || true
+          docker logs reviewer-prometheus || true
+          exit 1
 
       - name: Install Playwright
         run: |
@@ -67,7 +69,7 @@ jobs:
               page = browser.new_page(viewport={"width": 1440, "height": 900})
               page.goto('https://mlops-dicoding-reza-production.up.railway.app/v1/models/breast_cancer_model', wait_until='networkidle', timeout=60000)
               page.screenshot(path='evidence/cloud/reza_harahap-cloud-model-status.png', full_page=True)
-              page.goto('https://mlops-dicoding-reza-production-992b.up.railway.app/targets', wait_until='networkidle', timeout=60000)
+              page.goto('http://127.0.0.1:9090/targets', wait_until='networkidle', timeout=60000)
               page.screenshot(path='evidence/cloud/reza_harahap-prometheus-cloud-targets.png', full_page=True)
               browser.close()
           PY

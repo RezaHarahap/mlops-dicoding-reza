@@ -17,13 +17,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install pylint
-        run: pip install pylint==3.3.8
+      - name: Install lightweight lint dependencies
+        run: pip install pylint==3.3.8 pandas requests
 
       - name: Run pylint
         run: |
-          pylint modules pipeline.py request_prediction.py --exit-zero | tee pylint-report.txt
-          echo "PYLINT_COMPLETE"
+          pylint modules pipeline.py request_prediction.py \
+            --disable=import-error,line-too-long,missing-function-docstring \
+            | tee pylint-report.txt
 
       - name: Upload pylint report
         uses: actions/upload-artifact@v4

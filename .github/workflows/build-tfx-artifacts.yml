@@ -1,0 +1,69 @@
+name: Build Real TFX Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'pipeline.py'
+      - 'modules/**'
+      - 'data/**'
+      - 'requirements.txt'
+      - '.github/workflows/build-tfx-artifacts.yml'
+
+jobs:
+  build-tfx:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install nbformat nbclient
+
+      - name: Clean placeholder outputs
+        run: |
+          rm -rf reza_harahap-pipeline serving_model
+          mkdir -p serving_model
+
+      - name: Run TFX pipeline
+        env:
+          TF_CPP_MIN_LOG_LEVEL: '2'
+        run: |
+          python pipeline.py
+
+      - name: Validate real artifacts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('reza_harahap-pipeline')
+          assert root.exists(), 'pipeline root missing'
+          names = [p.name for p in root.iterdir() if p.is_dir()]
+          print('Top-level pipeline dirs:', names)
+          files = list(root.rglob('*'))
+          print('Artifact file count:', sum(p.is_file() for p in files))
+          assert sum(p.is_file() for p in files) > 10, 'not enough real TFX artifacts'
+          sm = Path('serving_model')
+          pb = list(sm.rglob('saved_model.pb'))
+          print('SavedModels:', pb)
+          assert pb, 'Pusher did not create SavedModel'
+          PY
+
+      - name: Upload TFX artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-tfx-artifacts
+          path: |
+            reza_harahap-pipeline/
+            serving_model/
+          retention-days: 30

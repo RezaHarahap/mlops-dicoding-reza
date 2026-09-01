@@ -1,0 +1,15 @@
+{
+  "components": [
+    "ExampleGen",
+    "StatisticsGen",
+    "SchemaGen",
+    "ExampleValidator",
+    "Transform",
+    "Tuner",
+    "Trainer",
+    "Resolver",
+    "Evaluator",
+    "Pusher"
+  ],
+  "orchestrator": "Apache Beam"
+}

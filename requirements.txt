@@ -1,0 +1,12 @@
+# Use Python 3.10 for TFX compatibility.
+tfx==1.15.1
+tensorflow==2.15.1
+tensorflow-model-analysis==0.46.0
+tensorflow-transform==1.15.0
+keras-tuner==1.4.7
+apache-beam[gcp]==2.53.0
+pandas==2.1.4
+numpy==1.26.4
+requests==2.31.0
+jupyter==1.0.0
+pylint==3.0.3

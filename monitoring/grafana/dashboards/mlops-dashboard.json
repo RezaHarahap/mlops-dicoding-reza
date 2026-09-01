@@ -1,0 +1,16 @@
+{
+  "title": "Breast Cancer Model Monitoring",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Prometheus Target Health",
+      "targets": [
+        {
+          "expr": "up"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

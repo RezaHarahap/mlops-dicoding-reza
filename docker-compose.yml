@@ -1,0 +1,13 @@
+services:
+  model-serving:
+    build: .
+    ports: ["8501:8501"]
+  prometheus:
+    build: ./monitoring
+    ports: ["9090:9090"]
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3000:3000"]
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards

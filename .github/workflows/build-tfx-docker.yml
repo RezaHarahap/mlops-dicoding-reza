@@ -12,6 +12,9 @@ on:
       - 'reza_harahap-pipeline.ipynb'
       - 'reza_harahap-testing.ipynb'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -70,6 +73,36 @@ jobs:
           assert 'ALL REVIEWER-CRITICAL TFX CHECKS PASSED' in outputs, 'Final reviewer check output missing from notebook'
           print('Notebook contains real Beam execution outputs.')
           PY
+
+      - name: Normalize Pusher model to TensorFlow Serving version 2
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          saved = list(Path('serving_model').rglob('saved_model.pb'))
+          assert saved, 'No Pusher SavedModel to normalize'
+          src = max(saved, key=lambda p: p.stat().st_mtime).parent
+          tmp = Path('/tmp/tfx_pusher_model')
+          if tmp.exists(): shutil.rmtree(tmp)
+          shutil.copytree(src, tmp)
+          shutil.rmtree('serving_model')
+          dst = Path('serving_model/2')
+          dst.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copytree(tmp, dst)
+          print('Railway serving model prepared at', dst)
+          PY
+
+      - name: Commit exact TFX Pusher SavedModel for Railway
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A serving_model
+          if git diff --cached --quiet; then
+            echo "TFX Pusher SavedModel already current."
+          else
+            git commit -m "Deploy TFX Pusher SavedModel to Railway [skip bootstrap]"
+            git push
+          fi
 
       - name: Package reviewer-ready submission
         run: |

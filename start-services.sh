@@ -14,7 +14,9 @@ PROM_PID=$!
   --monitoring_config_file=/etc/tf_serving/prometheus.config &
 TF_PID=$!
 
-/usr/bin/grafana-server \
+# Modern Grafana images keep the executable under /usr/share/grafana/bin.
+# The whole /usr/share/grafana directory is copied in the Dockerfile.
+/usr/share/grafana/bin/grafana server \
   --homepath=/usr/share/grafana \
   --config=/etc/grafana/grafana.ini &
 GRAFANA_PID=$!

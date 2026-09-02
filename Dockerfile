@@ -20,8 +20,6 @@ ENV GF_SERVER_HTTP_PORT=3000
 COPY --from=prometheus /bin/prometheus /usr/local/bin/prometheus
 COPY --from=prometheus /bin/promtool /usr/local/bin/promtool
 COPY --from=grafana /usr/share/grafana /usr/share/grafana
-COPY --from=grafana /usr/bin/grafana /usr/bin/grafana
-COPY --from=grafana /usr/bin/grafana-server /usr/bin/grafana-server
 
 COPY serving_model /models/breast_cancer_model
 COPY monitoring/prometheus.config /etc/tf_serving/prometheus.config

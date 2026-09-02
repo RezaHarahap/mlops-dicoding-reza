@@ -76,21 +76,18 @@ jobs:
 
       - name: Normalize Pusher model to TensorFlow Serving version 2
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import shutil
-          saved = list(Path('serving_model').rglob('saved_model.pb'))
-          assert saved, 'No Pusher SavedModel to normalize'
-          src = max(saved, key=lambda p: p.stat().st_mtime).parent
-          tmp = Path('/tmp/tfx_pusher_model')
-          if tmp.exists(): shutil.rmtree(tmp)
-          shutil.copytree(src, tmp)
-          shutil.rmtree('serving_model')
-          dst = Path('serving_model/2')
-          dst.parent.mkdir(parents=True, exist_ok=True)
-          shutil.copytree(tmp, dst)
-          print('Railway serving model prepared at', dst)
-          PY
+          SRC_MODEL="$(find serving_model -type f -name saved_model.pb -print -quit)"
+          test -n "$SRC_MODEL"
+          SRC_DIR="$(dirname "$SRC_MODEL")"
+          echo "Pusher SavedModel source: $SRC_DIR"
+          sudo rm -rf /tmp/tfx_pusher_model
+          sudo cp -a "$SRC_DIR" /tmp/tfx_pusher_model
+          sudo rm -rf serving_model
+          mkdir -p serving_model/2
+          sudo cp -a /tmp/tfx_pusher_model/. serving_model/2/
+          sudo chown -R "$(id -u):$(id -g)" serving_model
+          test -f serving_model/2/saved_model.pb
+          echo "Railway serving model prepared at serving_model/2"
 
       - name: Commit exact TFX Pusher SavedModel for Railway
         run: |
